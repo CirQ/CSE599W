@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Node(object):
     """Node in a computation graph."""
     def __init__(self):
@@ -30,7 +31,11 @@ class Node(object):
         return new_node
 
     def __mul__(self, other):
-        """TODO: Your code here"""
+        if isinstance(other, Node):
+            new_node = mul_op(self, other)
+        else:
+            new_node = mul_byconst_op(self, other)
+        return new_node
 
     # Allow left-hand-side add and multiply.
     __radd__ = __add__
@@ -42,6 +47,11 @@ class Node(object):
 
     __repr__ = __str__
 
+
+
+
+
+
 def Variable(name):
     """User defined variables in an expression.  
         e.g. x = Variable(name = "x")
@@ -49,6 +59,9 @@ def Variable(name):
     placeholder_node = placeholder_op()
     placeholder_node.name = name
     return placeholder_node
+
+
+
 
 class Op(object):
     """Op represents operations performed on nodes."""
@@ -91,6 +104,7 @@ class Op(object):
         """
         raise NotImplementedError
 
+
 class AddOp(Op):
     """Op to element-wise add two nodes."""
     def __call__(self, node_A, node_B):
@@ -107,6 +121,7 @@ class AddOp(Op):
     def gradient(self, node, output_grad):
         """Given gradient of add node, return gradient contributions to each input."""
         return [output_grad, output_grad]
+
 
 class AddByConstOp(Op):
     """Op to element-wise add a nodes by a constant."""
@@ -126,6 +141,7 @@ class AddByConstOp(Op):
         """Given gradient of add node, return gradient contribution to input."""
         return [output_grad]
 
+
 class MulOp(Op):
     """Op to element-wise multiply two nodes."""
     def __call__(self, node_A, node_B):
@@ -136,11 +152,13 @@ class MulOp(Op):
 
     def compute(self, node, input_vals):
         """Given values of two input nodes, return result of element-wise multiplication."""
-        """TODO: Your code here"""
+        assert len(input_vals) == 2
+        return input_vals[0] * input_vals[1]
 
     def gradient(self, node, output_grad):
         """Given gradient of multiply node, return gradient contributions to each input."""
-        """TODO: Your code here"""
+        return [node.inputs[1]*output_grad, node.inputs[0]*output_grad]
+
 
 class MulByConstOp(Op):
     """Op to element-wise multiply a nodes by a constant."""
@@ -153,11 +171,13 @@ class MulByConstOp(Op):
 
     def compute(self, node, input_vals):
         """Given values of input node, return result of element-wise multiplication."""
-        """TODO: Your code here"""
+        assert len(input_vals) == 1
+        return input_vals[0] * node.const_attr
 
     def gradient(self, node, output_grad):
         """Given gradient of multiplication node, return gradient contribution to input."""
-        """TODO: Your code here"""
+        return [node.const_attr*output_grad]
+
 
 class MatMulOp(Op):
     """Op to matrix multiply two nodes."""
@@ -193,6 +213,7 @@ class MatMulOp(Op):
         """
         """TODO: Your code here"""
 
+
 class PlaceholderOp(Op):
     """Op to feed value to a nodes."""
     def __call__(self):
@@ -207,6 +228,7 @@ class PlaceholderOp(Op):
     def gradient(self, node, output_grad):
         """No gradient function since node has no inputs."""
         return None
+
 
 class ZerosLikeOp(Op):
     """Op that represents a constant np.zeros_like."""
@@ -225,6 +247,7 @@ class ZerosLikeOp(Op):
     def gradient(self, node, output_grad):
         return [zeroslike_op(node.inputs[0])]
 
+
 class OnesLikeOp(Op):
     """Op that represents a constant np.ones_like."""
     def __call__(self, node_A):
@@ -242,6 +265,7 @@ class OnesLikeOp(Op):
     def gradient(self, node, output_grad):
         return [zeroslike_op(node.inputs[0])]
 
+
 # Create global singletons of operators.
 add_op = AddOp()
 mul_op = MulOp()
@@ -251,6 +275,7 @@ matmul_op = MatMulOp()
 placeholder_op = PlaceholderOp()
 oneslike_op = OnesLikeOp()
 zeroslike_op = ZerosLikeOp()
+
 
 class Executor:
     """Executor computes values for a given subset of nodes in a computation graph.""" 
@@ -275,11 +300,21 @@ class Executor:
         node_to_val_map = dict(feed_dict)
         # Traverse graph in topological sort order and compute values for all nodes.
         topo_order = find_topo_sort(self.eval_node_list)
-        """TODO: Your code here"""
+
+        for node in topo_order:
+            if isinstance(node.op, PlaceholderOp): # in node_to_val_map:
+                continue
+            inputs = [node_to_val_map[n] for n in node.inputs]
+            eval_val = node.op.compute(node, inputs)
+            node_to_val_map[node] = eval_val
 
         # Collect node values.
         node_val_results = [node_to_val_map[node] for node in self.eval_node_list]
         return node_val_results
+
+
+
+
 
 def gradients(output_node, node_list):
     """Take gradient of output node with respect to each node in node_list.
@@ -301,16 +336,32 @@ def gradients(output_node, node_list):
     # We are really taking a derivative of the scalar reduce_sum(output_node)
     # instead of the vector output_node. But this is the common case for loss function.
     node_to_output_grads_list[output_node] = [oneslike_op(output_node)]
+
     # a map from node to the gradient of that node
     node_to_output_grad = {}
+
     # Traverse graph in reverse topological order given the output_node that we are taking gradient wrt.
     reverse_topo_order = reversed(find_topo_sort([output_node]))
 
-    """TODO: Your code here"""
+    for node in reverse_topo_order:
+        grad = sum_node_list(node_to_output_grads_list[node])
+        node_to_output_grad[node] = grad
+
+        if isinstance(node.op, PlaceholderOp):
+            continue
+
+        for inode, partial in zip(node.inputs, node.op.gradient(node, grad)):
+            igrad = grad * partial
+            if inode in node_to_output_grads_list:
+                node_to_output_grads_list[inode].append(igrad)
+            else:
+                node_to_output_grads_list[inode] = [igrad]
 
     # Collect results for gradients requested.
     grad_node_list = [node_to_output_grad[node] for node in node_list]
     return grad_node_list
+
+
 
 ##############################
 ####### Helper Methods ####### 
