@@ -204,14 +204,23 @@ class MatMulOp(Op):
 
     def compute(self, node, input_vals):
         """Given values of input nodes, return result of matrix multiplication."""
-        """TODO: Your code here"""
+        assert len(input_vals) == 2
+        a, b = input_vals
+        if node.matmul_attr_trans_A:
+            a = np.transpose(a)
+        if node.matmul_attr_trans_B:
+            b = np.transpose(b)
+        return a @ b
 
     def gradient(self, node, output_grad):
         """Given gradient of multiply node, return gradient contributions to each input.
             
         Useful formula: if Y=AB, then dA=dY B^T, dB=A^T dY
         """
-        """TODO: Your code here"""
+        a, b = node.inputs
+        da = matmul_op(output_grad, b, False, True)
+        db = matmul_op(a, output_grad, True, False)
+        return [da, db]
 
 
 class PlaceholderOp(Op):
@@ -350,8 +359,7 @@ def gradients(output_node, node_list):
         if isinstance(node.op, PlaceholderOp):
             continue
 
-        for inode, partial in zip(node.inputs, node.op.gradient(node, grad)):
-            igrad = grad * partial
+        for inode, igrad in zip(node.inputs, node.op.gradient(node, grad)):
             if inode in node_to_output_grads_list:
                 node_to_output_grads_list[inode].append(igrad)
             else:
