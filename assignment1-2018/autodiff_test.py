@@ -190,7 +190,7 @@ def test_matmul_two_vars():
     assert np.array_equal(grad_x2_val, expected_grad_x2_val)
     assert np.array_equal(grad_x3_val, expected_grad_x3_val)
 
-def test_logistic_regression():
+def test_logistic_function():
     w1 = ad.Variable(name='w1')
     x1 = ad.Variable(name='x1')
     w2 = ad.Variable(name='w2')
