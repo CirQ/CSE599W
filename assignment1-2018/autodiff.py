@@ -41,6 +41,21 @@ class Node(object):
     __radd__ = __add__
     __rmul__ = __mul__
 
+    def __neg__(self):
+        return neg_op(self)
+    
+    def __truediv__(self, other):
+        if isinstance(other, Node):
+            new_node = div_op(self, other)
+        return new_node
+    
+    def __rtruediv__(self, other):
+        if isinstance(other, int):
+            new_node = const_div_op(other, self)
+        elif isinstance(other, float):
+            new_node = const_div_op(other, self)
+        return new_node
+
     def __str__(self):
         """Allow print to display node name.""" 
         return self.name
@@ -61,6 +76,8 @@ def Variable(name):
     return placeholder_node
 
 
+def Exp(x):
+    return exp_func(x)
 
 
 class Op(object):
@@ -275,6 +292,68 @@ class OnesLikeOp(Op):
         return [zeroslike_op(node.inputs[0])]
 
 
+class ExpFunc(Op):
+    def __call__(self, node_A):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "Exp(%s)" % node_A.name
+        return new_node
+    
+    def compute(self, node, input_vals):
+        return np.exp(input_vals[0])
+    
+    def gradient(self, node, output_grad):
+        return [output_grad*exp_func(node.inputs[0])]
+
+
+class NegOp(Op):
+    def __call__(self, node_A):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "-(%s)" % (node_A.name)
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert len(input_vals) == 1
+        return -input_vals[0]
+
+    def gradient(self, node, output_grad):
+        return [-output_grad]
+
+
+class ConstDivOp(Op):
+    def __call__(self, const_val, node_A):
+        new_node = Op.__call__(self)
+        new_node.const_attr = const_val
+        new_node.inputs = [node_A]
+        new_node.name = "(%d/(%s))" % (const_val, node_A.name)
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert len(input_vals) == 1
+        return node.const_attr / input_vals[0]
+
+    def gradient(self, node, output_grad):
+        return [-output_grad*node.const_attr/(node.inputs[0]*node.inputs[0])]
+
+
+
+class DivOp(Op):
+    def __call__(self, node_A, node_B):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A, node_B]
+        new_node.name = "(%s/%s)" % (node_A.name, node_B.name)
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert len(input_vals) == 2
+        return input_vals[0] / input_vals[1]
+
+    def gradient(self, node, output_grad):
+        x1, x2 = node.inputs
+        return [output_grad/x2, -output_grad*x1/(x2*x2)]
+
+
 # Create global singletons of operators.
 add_op = AddOp()
 mul_op = MulOp()
@@ -284,6 +363,10 @@ matmul_op = MatMulOp()
 placeholder_op = PlaceholderOp()
 oneslike_op = OnesLikeOp()
 zeroslike_op = ZerosLikeOp()
+exp_func = ExpFunc()
+neg_op = NegOp()
+const_div_op = ConstDivOp()
+div_op = DivOp()
 
 
 class Executor:

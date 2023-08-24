@@ -189,3 +189,37 @@ def test_matmul_two_vars():
     assert np.array_equal(y_val, expected_yval)
     assert np.array_equal(grad_x2_val, expected_grad_x2_val)
     assert np.array_equal(grad_x3_val, expected_grad_x3_val)
+
+def test_logistic_regression():
+    w1 = ad.Variable(name='w1')
+    x1 = ad.Variable(name='x1')
+    w2 = ad.Variable(name='w2')
+    x2 = ad.Variable(name='x2')
+    w0 = ad.Variable(name='w0')
+
+    y = 1 / (1 + ad.Exp(-(w0+w1*x1+w2*x2)))
+
+    grad_w0, grad_w1, grad_w2 = ad.gradients(y, [w0, w1, w2])
+    executor = ad.Executor([y, grad_w0, grad_w1, grad_w2])
+
+    w1_val = 1 * np.ones(1)
+    x1_val = 3 * np.ones(1)
+    w2_val = -2 * np.ones(1)
+    x2_val = 2 * np.ones(1)
+    w0_val = 2 * np.ones(1)
+
+    y_val, grad_w0_val, grad_w1_val, grad_w2_val = executor.run(feed_dict={
+        w1: w1_val, x1: x1_val, w2: w2_val, x2: x2_val, w0: w0_val
+    })
+
+    true_exp_val = np.exp(-(w0_val+w1_val*x1_val+w2_val*x2_val))
+    true_y_val = 1 / (1 + true_exp_val)
+    true_grad_w0_val = (-true_y_val**2) * (-true_exp_val)
+    true_grad_w1_val = (-true_y_val**2) * (-x1_val*true_exp_val)
+    true_grad_w2_val = (-true_y_val**2) * (-x2_val*true_exp_val)
+
+    assert isinstance(y, ad.Node)
+    assert np.array_equal(y_val, true_y_val)
+    assert np.array_equal(grad_w0_val, true_grad_w0_val)
+    assert np.array_equal(grad_w1_val, true_grad_w1_val)
+    assert np.array_equal(grad_w2_val, true_grad_w2_val)
