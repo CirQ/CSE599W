@@ -76,8 +76,6 @@ def Variable(name):
     return placeholder_node
 
 
-def Exp(x):
-    return exp_func(x)
 
 
 class Op(object):
@@ -337,7 +335,6 @@ class ConstDivOp(Op):
         return [-output_grad*node.const_attr/(node.inputs[0]*node.inputs[0])]
 
 
-
 class DivOp(Op):
     def __call__(self, node_A, node_B):
         new_node = Op.__call__(self)
@@ -354,6 +351,40 @@ class DivOp(Op):
         return [output_grad/x2, -output_grad*x1/(x2*x2)]
 
 
+class LogFunc(Op):
+    def __call__(self, node_A):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "Log(%s)" % node_A.name
+        return new_node
+
+    def compute(self, node, input_vals):
+        return np.log(input_vals[0])
+
+    def gradient(self, node, output_grad):
+        return [output_grad/node.inputs[0]]
+
+
+class ReduceSumOp(Op):
+    def __call__(self, node_A):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "ReduceSum(%s)" % (node_A.name,)
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert len(input_vals) == 1
+        return input_vals[0].sum(keepdims=True)
+
+    def gradient(self, node, output_grad):
+        ones = oneslike_op(node.inputs[0])
+        return [mul_op(ones, output_grad)]
+
+
+
+
+
+
 # Create global singletons of operators.
 add_op = AddOp()
 mul_op = MulOp()
@@ -367,6 +398,8 @@ exp_func = ExpFunc()
 neg_op = NegOp()
 const_div_op = ConstDivOp()
 div_op = DivOp()
+log_func = LogFunc()
+reduce_sum_op = ReduceSumOp()
 
 
 class Executor:
